@@ -24,12 +24,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          STORY_CLOUD_ORIGIN: ${{ vars.STORY_CLOUD_ORIGIN }}
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: .
+          path: dist
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

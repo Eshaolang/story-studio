@@ -1,0 +1,32 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import worker from '../server/worker.mjs';
+import {FileStore} from '../server/local.mjs';
+const story={id:'story-test',title:'测试',description:'',characters:[],blocks:[{id:'b',type:'narration',text:'第一行\n第二行'}],updatedAt:1};
+test('private invitations, permissions, concurrent writes, revocation and persistence',async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'story-studio-test-')),env={STORIES:new FileStore(directory)};
+  const call=async(path,{method='GET',token,data,origin}={})=>{
+    const r=await worker.fetch(new Request('https://studio.test'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{ }),...(origin?{Origin:origin}:{})},...(data?{body:JSON.stringify(data)}:{})}),env);
+    return {status:r.status,data:await r.json()};
+  };
+  const created=await call('/api/rooms',{method:'POST',data:{story}});assert.equal(created.status,201);
+  const {room,keys}=created.data,path='/api/rooms/'+room;
+  assert.equal((await call(path)).status,403);
+  assert.equal((await call('/api/rooms')).status,404);
+  assert.equal((await call(path,{token:keys.reader})).data.story.blocks[0].text,'第一行\n第二行');
+  assert.equal((await call(path,{method:'PUT',token:keys.reader,data:{story,revision:1}})).status,403);
+  assert.equal((await call(path+'/invites',{method:'POST',token:keys.editor})).status,403);
+  assert.equal((await call(path,{token:keys.owner,origin:'https://evil.test'})).status,403);
+  const writes=await Promise.all(['A','B'].map(title=>call(path,{method:'PUT',token:keys.editor,data:{story:{...story,title},revision:1}})));
+  assert.deepEqual(writes.map(x=>x.status).sort(),[200,409]);
+  env.STORIES=new FileStore(directory);
+  const read=await call(path,{token:keys.owner});assert.equal(read.data.revision,2);
+  const changed=await call(path+'/invites',{method:'POST',token:keys.owner});assert.equal(changed.data.revision,2);
+  assert.equal((await call(path,{token:keys.reader})).status,403);
+  assert.equal((await call(path,{token:changed.data.keys.reader})).status,200);
+  assert.equal((await call(path,{method:'DELETE',token:keys.owner})).status,200);
+  assert.equal((await call(path,{token:changed.data.keys.reader})).status,403);
+});
