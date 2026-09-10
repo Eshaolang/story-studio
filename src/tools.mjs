@@ -6,7 +6,7 @@ import {StorySync} from './sync.mjs';
 export function StudioTools({React:R, story, setState, select, preview}) {
   const h = R.createElement;
   const [rooms,setRooms] = R.useState(savedRooms), [status,setStatus] = R.useState(''), [busy,setBusy] = R.useState(false);
-  const [conflict,setConflict] = R.useState(null), [images,setImages] = R.useState([]), [showShare,setShowShare] = R.useState(false);
+  const [conflict,setConflict] = R.useState(null), [images,setImages] = R.useState([]), [showShare,setShowShare] = R.useState(false), [pendingInvite,setPendingInvite] = R.useState(null);
   const sync = R.useRef(null), latest = R.useRef(story), actionLock = R.useRef(false);
   latest.current = story;
   R.useEffect(() => { const warn=e=>setStatus(e.detail);window.addEventListener('studio-storage',warn);return()=>window.removeEventListener('studio-storage',warn); },[]);
@@ -29,12 +29,8 @@ export function StudioTools({React:R, story, setState, select, preview}) {
         setStatus('正在打开邀请…');
         const result = await requestRoom(`/api/rooms/${invitation.room}`,{token:invitation.token});
         if (!alive) return;
-        // Import as a separate local entry: an invitation never overwrites a draft.
-        const value = {...validateStory(result.story),id:id('story')};
-        saveSession(value.id,{...invitation,revision:result.revision,role:result.role,ackUpdatedAt:value.updatedAt});
-        add(value); preview(result.role === 'reader');
-        history.replaceState(null,'',location.pathname + location.search);
-        setStatus(result.role === 'reader' ? '已进入只读共享；本地副本可另存' : '已加入共享故事');
+        setPendingInvite({invitation,result});
+        setStatus('邀请已验证，请确认后打开故事');
       } catch(e) { if (alive) setStatus(e.message); }
     };
     join(); window.addEventListener('hashchange',join);
@@ -68,8 +64,26 @@ export function StudioTools({React:R, story, setState, select, preview}) {
     setConflict(null); setStatus('已保存本地副本，并载入共享版本');
   };
   const backup = () => download(new Blob([JSON.stringify(validateStory(story),null,2)],{type:'application/json'}),`${filename(story)}.story.json`);
+  const acceptInvite = () => {
+    if (!pendingInvite) return;
+    const {invitation,result} = pendingInvite;
+    const value = {...validateStory(result.story),id:id('story')};
+    saveSession(value.id,{...invitation,revision:result.revision,role:result.role,ackUpdatedAt:value.updatedAt});
+    add(value); preview(result.role === 'reader');
+    history.replaceState(null,'',location.pathname + location.search);
+    setPendingInvite(null); setStatus(result.role === 'reader' ? '已进入只读共享；本地副本可另存' : '已加入共享故事');
+  };
+  const declineInvite = () => { setPendingInvite(null); history.replaceState(null,'',location.pathname + location.search); setStatus('已取消打开邀请'); };
   const links = session?.keys;
   return h('aside',{className:'studio-tools','aria-label':'故事导出与共享'},
+    pendingInvite && h('div',{className:'studio-invite',role:'dialog','aria-labelledby':'studio-invite-title'},
+      h('div',{className:'studio-invite-mark'},'STORY STUDIO'),
+      h('h2',{id:'studio-invite-title'},'你收到一个故事邀请'),
+      h('p',{className:'studio-invite-title'},pendingInvite.result.story.title || '未命名故事'),
+      h('p',null,`权限：${pendingInvite.result.role === 'reader' ? '只读' : '可编辑'}`),
+      h('p',{className:'studio-invite-note'},'这是故事创作工具的私密邀请。接受后会在当前浏览器创建一个本地副本；故事作者不会因此获得你的其他文件或浏览器资料。请只接受你认识的人发来的链接。'),
+      h('div',{className:'studio-actions'},h('button',{type:'button',className:'button-dark',onClick:acceptInvite},'接受邀请并打开'),h('button',{type:'button',className:'button-light',onClick:declineInvite},'取消'))
+    ),
     h('div',{className:'studio-actions'},
       story && button('导出图片',async()=>{const result = await imageStory(story,setStatus); setImages(result.map(x=>({...x,url:URL.createObjectURL(x.blob)}))); setStatus('图片已生成，请点击下方下载');}),
       story && button('导出 PDF',()=>printStory(story)),
