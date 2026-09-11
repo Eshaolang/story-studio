@@ -9,6 +9,9 @@ export const filename = story => (story.title || '未命名故事').replace(/[<>
 const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 const css = `*{box-sizing:border-box}body{margin:0;background:#eee7dc;color:#231d1b;font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif}.story-document{width:900px;max-width:100%;margin:auto;padding:42px;background:#f8f3eb}h1{font-size:34px;line-height:1.45;margin:0 0 22px;overflow-wrap:anywhere}p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.story-piece{margin:0 0 22px;break-inside:avoid}.narration{font-size:20px;line-height:1.85;text-align:center;padding:22px 26px;border:1px solid #d8c2a8;background:#f4ecdf}.dialogue{display:flex;align-items:flex-start;gap:16px}.avatar{width:76px;height:76px;flex:0 0 76px;object-fit:cover;background:#342723;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px}.speech{flex:1;min-width:0;padding:16px 22px;background:#fdfcfa;border:1px solid #d8c2a8}.speaker{display:block;font-size:13px;color:#6d4c36;font-weight:bold;margin-bottom:8px}.speech p{font-size:20px;line-height:1.8}figure{margin:0}figure img{display:block;max-width:100%;max-height:620px;margin:auto;object-fit:contain}figcaption{white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;margin-top:10px;font-size:14px;line-height:1.7}.print-controls{max-width:900px;margin:20px auto;padding:16px;font-size:14px}.print-controls button{padding:10px 20px;margin-right:10px;cursor:pointer}@page{size:A4;margin:16mm}@media print{body{background:#fff}.print-controls{display:none!important}.story-document{width:auto;max-width:none;padding:0;background:#fff}h1{font-size:24pt}.narration,.speech p{font-size:12pt}.narration{padding:12px 18px}.story-piece{break-inside:avoid}.story-piece.tall{break-inside:auto}.avatar{width:52px;height:52px;flex-basis:52px}figure img{max-height:235mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
 
+export function standaloneStory(story) {
+ return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${esc(story.title||'故事')}</title><style>${css}</style></head><body>${storyHTML(story)}</body></html>`;
+}
 export function storyHTML(story) {
   const dialogue = line => {
     const c = story.characters.find(c => c.id === line.characterId);
@@ -66,3 +69,4 @@ export async function imageStory(story, onProgress = () => {}) {
     return results;
   } finally { frame.remove(); }
 }
+
